@@ -60,16 +60,28 @@ float FindAbsMaxGpu(const platform::CUDADeviceContext& ctx, const float* array,
   int gridDimx = (kNumTheads - 1 + length) / kNumTheads;
   gridDimx = (gridDimx > kNumTheads) ? kNumTheads : gridDimx;
   framework::Tensor t;
+<<<<<<< HEAD
   float* device_max = t.mutable_data<float>(framework::make_ddim({gridDimx}),
                                             platform::CUDAPlace());
+=======
+  auto& gpu_place = boost::get<platform::CUDAPlace>(ctx.GetPlace());
+  platform::SetDeviceId(gpu_place.device);
+  float* device_max =
+      t.mutable_data<float>(framework::make_ddim({gridDimx}), ctx.GetPlace());
+>>>>>>> quantize_transpiler
   FindAbsMaxKernel<float><<<gridDimx, kNumTheads, kNumTheads * sizeof(float),
                             ctx.stream()>>>(length, array, device_max);
   FindAbsMaxKernel<
       float><<<1, kNumTheads, kNumTheads * sizeof(float), ctx.stream()>>>(
       gridDimx, device_max, device_max);
+<<<<<<< HEAD
   PADDLE_ENFORCE_EQ(
       cudaMemcpy(&host_max, device_max, sizeof(float), cudaMemcpyDeviceToHost),
       cudaSuccess, "cudaMemcpy failed");
+=======
+  memory::Copy(platform::CPUPlace(), &host_max, gpu_place, device_max,
+               sizeof(float), ctx.stream());
+>>>>>>> quantize_transpiler
   return host_max;
 }
 
@@ -135,9 +147,18 @@ int ApplySaturateGpu(const platform::CUDADeviceContext& ctx, const int n,
   int kNumTheads = 1024;
   int gridDimx = (n + kNumTheads - 1) / kNumTheads;
   gridDimx = (gridDimx > kNumTheads) ? kNumTheads : gridDimx;
+<<<<<<< HEAD
   framework::Tensor t;
   int* device_num_saturate = t.mutable_data<int>(
       framework::make_ddim({gridDimx}), platform::CUDAPlace());
+=======
+
+  auto& gpu_place = boost::get<platform::CUDAPlace>(ctx.GetPlace());
+  framework::Tensor t;
+  int* device_num_saturate =
+      t.mutable_data<int>(framework::make_ddim({gridDimx}), gpu_place);
+
+>>>>>>> quantize_transpiler
   ApplySaturateKernel<
       T><<<gridDimx, kNumTheads, kNumTheads * sizeof(T), ctx.stream()>>>(
       n, in, out, device_num_saturate, min, max);
@@ -154,6 +175,7 @@ template <typename DeviceContext, typename T>
 class FakeQuantizeCUDAKernel : public framework::OpKernel<T> {
  public:
   T FindRangeAbsMax(const platform::CUDADeviceContext& ctx,
+<<<<<<< HEAD
                     framework::Tensor* scale_list, framework::Tensor* out_scale,
                     const T& cur_scale, int window_size,
                     int current_iter) const {
@@ -164,12 +186,30 @@ class FakeQuantizeCUDAKernel : public framework::OpKernel<T> {
     if (max_scale < cur_scale) {
       max_scale = cur_scale;
     } else if (fabs(remove_tmp - max_scale) < 1e-6) {
+=======
+                    framework::Tensor* scale_list, const T last_max_scale,
+                    const T& cur_scale, int window_size,
+                    int current_iter) const {
+    T* sl = scale_list->mutable_data<T>(scale_list->place());
+    T remove_tmp;
+    auto& gpu_place = boost::get<platform::CUDAPlace>(ctx.GetPlace());
+    int list_idx = current_iter % window_size;
+    memory::Copy(platform::CPUPlace(), &remove_tmp, gpu_place,
+                 sl + list_idx, sizeof(float), ctx.stream());
+    memory::Copy(gpu_place, sl + list_idx, platform::CPUPlace(), &cur_scale,
+                 sizeof(T), ctx.stream());
+    T max_scale = last_max_scale;
+    if (max_scale < cur_scale) {
+        max_scale = cur_scale;
+    }else if (fabs(remove_tmp - max_scale) < 1e-6) {
+>>>>>>> quantize_transpiler
       int size = (current_iter > window_size) ? window_size : current_iter;
       max_scale = T(FindAbsMaxGpu(ctx, scale_list->data<float>(), size));
     }
     return max_scale;
   }
 
+<<<<<<< HEAD
   T FindMovingAverageAbsMmax(framework::Tensor* in_scale,
                              framework::Tensor* out_scale,
                              const T& cur_scale) const {
@@ -179,6 +219,8 @@ class FakeQuantizeCUDAKernel : public framework::OpKernel<T> {
     return T(outs[0]);
   }
 
+=======
+>>>>>>> quantize_transpiler
   virtual void Compute(const framework::ExecutionContext& context) const {
     PADDLE_ENFORCE(platform::is_gpu_place(context.GetPlace()),
                    "This kernel only runs on GPU device.");
@@ -197,18 +239,39 @@ class FakeQuantizeCUDAKernel : public framework::OpKernel<T> {
           ->mutable_data<T>(
               context.Input<framework::Tensor>("InScales")->place());
       context.Output<framework::Tensor>("OutCurrentIter")
+<<<<<<< HEAD
           ->mutable_data<T>(
               context.Input<framework::Tensor>("InCurrentIter")->place());
     }
+=======
+          ->mutable_data<int>(
+              context.Input<framework::Tensor>("InCurrentIter")->place());
+    }
+    if (quantize_type == std::string("moving_average_abs_max")) {
+      context.Output<framework::Tensor>("OutState")
+          ->mutable_data<T>(
+              context.Input<framework::Tensor>("InState")->place());
+      context.Output<framework::Tensor>("OutAccum")
+          ->mutable_data<T>(
+              context.Input<framework::Tensor>("InAccum")->place());
+    }
+>>>>>>> quantize_transpiler
 
     T scale = T(1);
     int window_size = context.Attr<int>("window_size");
     T bin_cnt = (T)((1 << (context.Attr<int>("bit_length") - 1)) - 1);
+<<<<<<< HEAD
     if (quantize_type == std::string("abs_max")) {
       auto* saving_scale = context.Output<framework::Tensor>("OutMovingScale");
       scale = (T)FindAbsMaxGpu(device_ctx, in->data<float>(), in->numel());
       saving_scale->mutable_data<T>(platform::CPUPlace())[0] = scale;
 
+=======
+
+    auto& gpu_place = boost::get<platform::CUDAPlace>(context.GetPlace());
+    if (quantize_type == std::string("abs_max")) {
+      scale = (T)FindAbsMaxGpu(device_ctx, in->data<float>(), in->numel());
+>>>>>>> quantize_transpiler
       auto& device_ctx = context.template device_context<DeviceContext>();
       auto* scale_list = context.Output<framework::Tensor>("OutScales");
       math::SetConstant<DeviceContext, T> scalar;
@@ -221,6 +284,7 @@ class FakeQuantizeCUDAKernel : public framework::OpKernel<T> {
       auto* moving_scale = const_cast<framework::Tensor*>(
           context.Input<framework::Tensor>("InMovingScale"));
       if (is_test) {
+<<<<<<< HEAD
         scale = moving_scale->mutable_data<T>(platform::CPUPlace())[0];
       } else {
         auto* it = const_cast<framework::Tensor*>(
@@ -250,6 +314,69 @@ class FakeQuantizeCUDAKernel : public framework::OpKernel<T> {
       }
     }
 
+=======
+        memory::Copy(platform::CPUPlace(), &scale, gpu_place,
+                     moving_scale->data<T>(), sizeof(T), device_ctx.stream());
+      } else {
+        auto* in_iter = const_cast<framework::Tensor*>(
+            context.Input<framework::Tensor>("InCurrentIter"));
+        int iter;
+        memory::Copy(platform::CPUPlace(), &iter, gpu_place,
+                     in_iter->data<int>(), sizeof(int), device_ctx.stream());
+        T last_max_scale;
+        memory::Copy(platform::CPUPlace(), &last_max_scale, gpu_place,
+                     moving_scale->data<T>(), sizeof(T), device_ctx.stream());
+
+        auto* scale_list = context.Output<framework::Tensor>("OutScales");
+        scale = (T)FindAbsMaxGpu(device_ctx, in->data<float>(), in->numel());
+        scale = FindRangeAbsMax(device_ctx, scale_list, last_max_scale, scale,
+                                window_size, iter);
+
+        iter = iter + 1;
+        auto* out_iter = context.Output<framework::Tensor>("OutCurrentIter");
+        memory::Copy(gpu_place, out_iter->mutable_data<int>(gpu_place),
+                     platform::CPUPlace(), &iter, sizeof(int),
+                     device_ctx.stream());
+      }
+    } else if (quantize_type == std::string("moving_average_abs_max")) {
+      auto* in_accum = const_cast<framework::Tensor*>(
+          context.Input<framework::Tensor>("InAccum"));
+      auto* in_state = const_cast<framework::Tensor*>(
+          context.Input<framework::Tensor>("InState"));
+      T accum;
+      memory::Copy(platform::CPUPlace(), &accum, gpu_place,
+                   in_accum->data<T>(), sizeof(T), device_ctx.stream());
+      T state;
+      memory::Copy(platform::CPUPlace(), &state, gpu_place,
+                   in_state->data<T>(), sizeof(T), device_ctx.stream());
+      if (is_test) {
+        scale = accum/state;
+      } else {
+        scale = (T)FindAbsMaxGpu(device_ctx, in->data<float>(), in->numel());
+        
+        state = 0.9 * state + 1;
+        accum = 0.9 * accum + scale;
+
+        auto* out_state = context.Output<framework::Tensor>("OutState");
+        memory::Copy(gpu_place, out_state->mutable_data<T>(gpu_place),
+                     platform::CPUPlace(), &state, sizeof(T),
+                     device_ctx.stream());
+
+        auto* out_accum = context.Output<framework::Tensor>("OutAccum");
+        memory::Copy(gpu_place, out_accum->mutable_data<T>(gpu_place),
+                     platform::CPUPlace(), &accum, sizeof(T),
+                     device_ctx.stream());
+      }
+    }
+
+    if (!is_test) {
+      auto* saving_scale = context.Output<framework::Tensor>("OutMovingScale");
+      memory::Copy(gpu_place, saving_scale->mutable_data<T>(gpu_place),
+                   platform::CPUPlace(), &scale, sizeof(T),
+                   device_ctx.stream());
+    }
+
+>>>>>>> quantize_transpiler
     ApplySaturateGpu<T>(device_ctx, in->numel(), in->data<T>(),
                         tensor->mutable_data<T>(in->place()), -scale, scale);
     scale = bin_cnt / scale;

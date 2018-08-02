@@ -1,4 +1,5 @@
 add_subdirectory(details)
+add_subdirectory(ir)
 # ddim lib
 proto_library(framework_proto SRCS framework.proto)
 
@@ -27,6 +28,7 @@ cc_test(lod_tensor_test SRCS lod_tensor_test.cc DEPS lod_tensor memory)
 nv_test(lod_tensor_gpu_test SRCS lod_tensor_test.cu DEPS lod_tensor)
 
 cc_library(reader SRCS reader.cc DEPS lod_tensor ddim)
+cc_test(reader_test SRCS reader_test.cc DEPS reader)
 
 cc_test(variable_test SRCS variable_test.cc)
 
@@ -92,7 +94,7 @@ else()
 endif()
 
 
-cc_library(parallel_executor SRCS parallel_executor.cc DEPS ssa_graph_builder_factory threaded_ssa_graph_executor scope_buffered_ssa_graph_executor)
+cc_library(parallel_executor SRCS parallel_executor.cc DEPS ssa_graph_builder_factory threaded_ssa_graph_executor scope_buffered_ssa_graph_executor graph)
 
 cc_library(prune SRCS prune.cc DEPS framework_proto)
 cc_test(prune_test SRCS prune_test.cc DEPS op_info prune recurrent_op device_context)

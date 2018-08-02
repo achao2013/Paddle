@@ -26,7 +26,11 @@ class TestFakeQuantizeOp(OpTest):
             'window_size': 10000
         }
         self.inputs = {
+<<<<<<< HEAD
             'X': np.random.random((10, 10)).astype("float32"),
+=======
+            'X': np.random.random((10, 10)).astype("float32") * 10,
+>>>>>>> quantize_transpiler
             'InScales': np.zeros(self.attrs['window_size']).astype("float32"),
             'InCurrentIter': np.zeros(1).astype("float32"),
             'InMovingScale': np.zeros(1).astype("float32")
