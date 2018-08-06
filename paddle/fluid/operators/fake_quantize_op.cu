@@ -369,12 +369,12 @@ class FakeQuantizeCUDAKernel : public framework::OpKernel<T> {
       }
     }
 
-    if (!is_test) {
-      auto* saving_scale = context.Output<framework::Tensor>("OutMovingScale");
-      memory::Copy(gpu_place, saving_scale->mutable_data<T>(gpu_place),
-                   platform::CPUPlace(), &scale, sizeof(T),
-                   device_ctx.stream());
-    }
+    
+    auto* saving_scale = context.Output<framework::Tensor>("OutMovingScale");
+    memory::Copy(gpu_place, saving_scale->mutable_data<T>(gpu_place),
+                 platform::CPUPlace(), &scale, sizeof(T),
+                 device_ctx.stream());
+    
 
 >>>>>>> quantize_transpiler
     ApplySaturateGpu<T>(device_ctx, in->numel(), in->data<T>(),
